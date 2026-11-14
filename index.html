@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mesh tracking">
+<title>Mesh tracking</title>
+<style>
+:root{
+  --paper:#FFFFFF; --paper-2:#F6F6F6;
+  --ink:#111111; --text:#1F1F1F; --muted:#5C5C5C;
+  --rule:#E3E3E3; --line:#C9C9C9;
+  --accent:#0B5FD1; --danger:#B3261E;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#121212; --paper-2:#1C1C1C; --ink:#F2F2F2; --text:#E6E6E6; --muted:#A8A8A8;
+    --rule:#303030; --line:#4A4A4A; --accent:#7FB3FF; --danger:#FF8A7A;
+    color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:17px;line-height:1.55}
+h1,h2{color:var(--ink);font-weight:700;letter-spacing:-.01em;line-height:1.2}
+h1{font-size:18px;margin:0}
+h2{font-size:18px;margin:28px 0 8px}
+p{margin:8px 0}
+.meta{color:var(--muted);font-size:14px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+.top{border-bottom:1px solid var(--rule)}
+.top .in{max-width:1080px;margin:0 auto;padding:12px 16px}
+.wrap{max-width:1080px;margin:0 auto;padding:16px 16px 60px;display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.panel{min-width:0}
+
+#stage{position:relative;--ar:1.3333;width:min(100%,calc(62vh * var(--ar)));width:min(100%,calc(62svh * var(--ar)));
+  aspect-ratio:var(--ar);margin:0 auto;background:var(--paper-2);border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+#stage video,#stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#stage video{object-fit:fill}
+#stage.overlay canvas{opacity:.62}
+#stage.three video{visibility:hidden}
+#stage.three canvas{touch-action:none}
+#stageMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;margin:0;padding:16px;
+  text-align:center;color:var(--muted);font-size:15px}
+
+.row{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--ink);border-radius:4px;padding:12px 14px;
+  font:inherit;font-size:16px;font-weight:600;line-height:1.2;background:transparent;color:var(--ink);cursor:pointer;
+  flex:1 1 140px;-webkit-tap-highlight-color:transparent}
+.btn:hover{background:var(--paper-2)}
+.btn.primary{background:var(--ink);color:var(--paper)}
+.btn:disabled{opacity:.35;pointer-events:none}
+select{font:inherit;color:var(--text);background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:9px 10px;max-width:100%}
+
+.bar{height:6px;background:var(--paper-2);border-radius:3px;overflow:hidden;margin:10px 0 4px}
+.bar i{display:block;height:100%;width:0;background:var(--ink)}
+
+fieldset{border:0;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 14px}
+fieldset label{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:16px}
+input[type=checkbox]{width:20px;height:20px;margin:0;accent-color:var(--ink)}
+
+#overall{font-weight:700;color:var(--ink);margin:0 0 6px}
+#overall.out{color:var(--danger)}
+table.data{border-collapse:collapse;width:100%;font-size:16px}
+table.data th,table.data td{padding:8px 10px 8px 0;text-align:left;vertical-align:middle;border-top:1px solid var(--rule)}
+table.data th{font-size:13px;color:var(--muted);font-weight:600;border-top:0;border-bottom:1px solid var(--ink)}
+table.data td.val{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink);white-space:nowrap;width:92px}
+table.data td.ax{width:64px}
+table.data tr.out td.val{color:var(--danger)}
+.pbar{position:relative;height:14px;min-width:90px}
+.pbar::before{content:"";position:absolute;left:0;right:0;top:4px;height:6px;background:var(--paper-2);border-radius:3px}
+.pbar .tol{position:absolute;top:4px;height:6px;left:33.333%;width:33.333%;background:var(--line)}
+.pbar.mag .tol{left:0}
+.pbar .mk{position:absolute;top:0;width:3px;height:14px;margin-left:-1.5px;left:50%;background:var(--ink);border-radius:1px}
+.pbar.mag .mk{left:0}
+tr.out .pbar .mk{background:var(--danger)}
+
+.tolrow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 12px;margin:10px 0}
+.tolrow label{grid-column:1 / -1;font-size:15px}
+.tolrow input[type=range]{width:100%;accent-color:var(--ink);height:28px}
+.tolrow output{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink);min-width:64px;text-align:right}
+
+@media (min-width:900px){
+  .top .in{padding:14px 28px}
+  .wrap{grid-template-columns:minmax(0,1fr) 380px;gap:36px;padding:24px 28px 80px}
+  .view{position:sticky;top:16px;align-self:start}
+  #stage{width:min(100%,calc(78vh * var(--ar)))}
+  .panel h2:first-child{margin-top:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<header class="top"><div class="in"><h1>Mesh tracking</h1></div></header>
+
+<div class="wrap">
+  <div class="view">
+    <div id="stage" class="overlay">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="view"></canvas>
+      <p id="stageMsg">Camera off</p>
+    </div>
+    <div class="row">
+      <button id="start" class="btn primary" type="button">Start camera</button>
+      <button id="flip" class="btn" type="button" hidden>Switch camera</button>
+      <button id="mode" class="btn" type="button" disabled>Show 3D view</button>
+    </div>
+    <div id="load" hidden>
+      <div class="bar"><i id="loadBar"></i></div>
+    </div>
+    <p id="status" class="meta" role="status"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Reference</h2>
+    <div class="row">
+      <button id="capture" class="btn primary" type="button" disabled>Capture reference</button>
+      <button id="clear" class="btn" type="button" disabled>Clear reference</button>
+    </div>
+    <p id="refStatus" class="meta">No reference captured</p>
+
+    <h2>Shift from reference</h2>
+    <p id="overall" role="status" aria-live="polite">Reference required</p>
+    <table class="data">
+      <thead><tr><th>Axis</th><th>Shift</th><th>Position against tolerance</th></tr></thead>
+      <tbody id="readout">
+        <tr data-k="vrt"><td class="ax">VRT</td><td class="val">--</td><td><div class="pbar"><i class="tol"></i><i class="mk"></i></div></td></tr>
+        <tr data-k="lat"><td class="ax">LAT</td><td class="val">--</td><td><div class="pbar"><i class="tol"></i><i class="mk"></i></div></td></tr>
+        <tr data-k="lng"><td class="ax">LNG</td><td class="val">--</td><td><div class="pbar"><i class="tol"></i><i class="mk"></i></div></td></tr>
+        <tr data-k="mag"><td class="ax">MAG</td><td class="val">--</td><td><div class="pbar mag"><i class="tol"></i><i class="mk"></i></div></td></tr>
+        <tr data-k="yaw"><td class="ax">YAW</td><td class="val">--</td><td><div class="pbar"><i class="tol"></i><i class="mk"></i></div></td></tr>
+        <tr data-k="pitch"><td class="ax">PITCH</td><td class="val">--</td><td><div class="pbar"><i class="tol"></i><i class="mk"></i></div></td></tr>
+        <tr data-k="roll"><td class="ax">ROLL</td><td class="val">--</td><td><div class="pbar"><i class="tol"></i><i class="mk"></i></div></td></tr>
+      </tbody>
+    </table>
+    <p class="meta">LAT positive toward patient left. LNG positive toward the head. VRT positive anterior.
+      Pitch is about LAT, roll about LNG, yaw about VRT. Axes are set from the body at reference capture.</p>
+
+    <h2>Tracking regions</h2>
+    <fieldset id="regions">
+      <label><input type="checkbox" value="fullBody" checked><span>Full body</span></label>
+      <label><input type="checkbox" value="torso"><span>Whole torso</span></label>
+      <label><input type="checkbox" value="head"><span>Head</span></label>
+      <label><input type="checkbox" value="upperChest"><span>Upper chest</span></label>
+      <label><input type="checkbox" value="thorax"><span>Thorax</span></label>
+      <label><input type="checkbox" value="abdomen"><span>Abdomen</span></label>
+      <label><input type="checkbox" value="pelvis"><span>Pelvis</span></label>
+    </fieldset>
+
+    <h2>Tolerance</h2>
+    <div class="tolrow">
+      <label for="tolT">Translation</label>
+      <input id="tolT" type="range" min="1" max="30" step="1" value="10">
+      <output id="tolTOut">10 mm</output>
+    </div>
+    <div class="tolrow">
+      <label for="tolR">Rotation</label>
+      <input id="tolR" type="range" min="0.5" max="10" step="0.5" value="2">
+      <output id="tolROut">2.0&deg;</output>
+    </div>
+
+    <h2>Model</h2>
+    <select id="model" aria-label="Model">
+      <option value="nano" selected>Nano, 81 MB</option>
+      <option value="small">Small, 98 MB</option>
+      <option value="medium">Medium, 129 MB</option>
+    </select>
+    <p class="meta">InstantHMR runs on this device. The model downloads once and is then kept on the device.</p>
+
+    <p class="meta">Research demonstration only. Not for clinical positioning.</p>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/ort.webgpu.bundle.min.mjs";
+
+/* ---------- configuration ---------- */
+
+// Model files. Add ?models=<folder url> to the page address to load them from your own host instead.
+const MODEL_BASE = (new URLSearchParams(location.search).get("models") ||
+  "https://huggingface.co/momolesang/InstantHMR/resolve/main/").replace(/\/?$/, "/");
+const MODEL_FILES = { nano: "instanthmr-nano.onnx", small: "instanthmr-small.onnx", medium: "instanthmr-medium.onnx" };
+const BODY_FILE = "mhr-body.onnx";
+
+// InstantHMR preprocessing constants (instanthmr/inference.py, instanthmr/pipeline.py).
+const MEAN = [0.485, 0.456, 0.406], STD = [0.229, 0.224, 0.225];
+const CROP_EXPAND = 1.2, FOCAL_FALLBACK_DIAG = 1.05, DETECTOR_TO_GT_BOX = 1 / 0.866, BOX_PAD = 0.15;
+const BODY_KEYPOINTS = [...Array(21).keys(), 41, 62, 63, 64, 65, 66, 67, 68, 69];
+const KP = { lShoulder: 5, rShoulder: 6, lHip: 9, rHip: 10, neck: 69 };
+
+// Mesh colours (data only).
+const C_BASE = [0.72, 0.74, 0.77], C_SEL = [0.36, 0.62, 0.92];
+const C_OK = [0.28, 0.72, 0.48], C_NEAR = [0.94, 0.62, 0.22], C_OUT = [0.90, 0.28, 0.24];
+
+ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/";
+ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+ort.env.logLevel = "error";
+
+/* ---------- elements ---------- */
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), video = $("video"), canvas = $("view"), stageMsg = $("stageMsg");
+const startBtn = $("start"), flipBtn = $("flip"), modeBtn = $("mode");
+const loadBox = $("load"), loadBar = $("loadBar"), statusEl = $("status");
+const captureBtn = $("capture"), clearBtn = $("clear"), refStatus = $("refStatus");
+const regionInputs = [...document.querySelectorAll("#regions input")];
+const overall = $("overall"), tolT = $("tolT"), tolR = $("tolR"), modelSel = $("model");
+const rows = Object.fromEntries([...document.querySelectorAll("#readout tr")].map(tr =>
+  [tr.dataset.k, { tr, val: tr.querySelector(".val"), mk: tr.querySelector(".mk") }]));
+
+/* ---------- state ---------- */
+
+let stream = null, running = false, busy = false, facing = "environment";
+let net = null, body = null, backend = "", inputSize = 288, cliffFocal = true, loadedModel = "";
+let box = null, frameMs = 0;
+let live = null;        // { verts: Float32Array(V*3) body-centred, t: [x,y,z], joints: Float32Array(70*3) }
+let reference = null;   // { verts, t, joints, frame, regions, time }
+let liveRegions = null; // regions from the live body, used for display before a reference exists
+let three = null, view3d = false;
+
+const setStatus = text => { statusEl.textContent = text; };
+
+/* ---------- model loading ---------- */
+
+async function fetchBytes(url, onProgress) {
+  let cache = null;
+  try {
+    cache = await caches.open("mesh-tracking-models-v1");
+    const hit = await cache.match(url);
+    if (hit) return new Uint8Array(await hit.arrayBuffer());
+  } catch (e) { cache = null; }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Model download failed (" + res.status + "): " + url);
+  const total = Number(res.headers.get("content-length")) || 0;
+  let bytes;
+  if (res.body && total) {
+    bytes = new Uint8Array(total);
+    const reader = res.body.getReader();
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (got + value.length > bytes.length) {         // length header was wrong: grow
+        const grown = new Uint8Array(Math.max(bytes.length * 2, got + value.length));
+        grown.set(bytes.subarray(0, got)); bytes = grown;
+      }
+      bytes.set(value, got); got += value.length;
+      onProgress(got / total);
+    }
+    bytes = bytes.subarray(0, got);
+  } else {
+    bytes = new Uint8Array(await res.arrayBuffer());
+  }
+  try { if (cache) await cache.put(url, new Response(bytes, { headers: { "content-type": "application/octet-stream" } })); }
+  catch (e) { /* storage full or unavailable: the model downloads again next time */ }
+  return bytes;
+}
+
+// Read the metadata_props entries (field 14) of an ONNX ModelProto without a protobuf library.
+function onnxMetadata(bytes) {
+  const out = {}, dec = new TextDecoder(), n = bytes.length;
+  let p = 0;
+  const varint = () => { let r = 0, m = 1, b; do { b = bytes[p++]; r += (b & 127) * m; m *= 128; } while (b & 128); return r; };
+  while (p < n) {
+    const tag = varint(), field = Math.floor(tag / 8), wire = tag % 8;
+    if (wire === 0) varint();
+    else if (wire === 1) p += 8;
+    else if (wire === 5) p += 4;
+    else if (wire === 2) {
+      const len = varint(), end = p + len;
+      if (field === 14) {
+        let key = "", value = "";
+        while (p < end) {
+          const t = varint(), size = varint(), s = bytes.subarray(p, p + size);
+          p += size;
+          if (t >> 3 === 1) key = dec.decode(s); else if (t >> 3 === 2) value = dec.decode(s);
+        }
+        out[key] = value;
+      }
+      p = end;
+    } else break;
+  }
+  return out;
+}
+
+function decodeFaces(b64) {
+  const bin = atob(b64), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Uint32Array(bytes.buffer, 0, bytes.length >> 2);
+}
+
+async function loadModels(name) {
+  loadBox.hidden = false; loadBar.style.width = "0%";
+  net = null; loadedModel = "";
+  const progress = label => f => { loadBar.style.width = (f * 100).toFixed(1) + "%"; setStatus(label + " " + Math.round(f * 100) + "%"); };
+
+  setStatus("Loading body model");
+  if (!body) {
+    const bodyBytes = await fetchBytes(MODEL_BASE + BODY_FILE, progress("Downloading body model"));
+    const meta = onnxMetadata(bodyBytes);
+    if (!meta.mesh_faces) throw new Error("The body model file has no mesh faces.");
+    const faces = decodeFaces(meta.mesh_faces);
+    body = await ort.InferenceSession.create(bodyBytes, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+    initThree(faces);
+  }
+
+  setStatus("Loading pose model");
+  const netBytes = await fetchBytes(MODEL_BASE + MODEL_FILES[name], progress("Downloading pose model"));
+  const meta = onnxMetadata(netBytes);
+  inputSize = Number(meta.image_size) || 288;
+  cliffFocal = (meta.cliff_focal || "true") === "true";
+  setStatus("Preparing pose model");
+  const tryCreate = async eps => {
+    const session = await ort.InferenceSession.create(netBytes, { executionProviders: eps, graphOptimizationLevel: "all" });
+    await session.run({                                   // warm-up, and proof that this backend runs the graph
+      image: new ort.Tensor("float32", new Float32Array(3 * inputSize * inputSize), [1, 3, inputSize, inputSize]),
+      cliff_cond: new ort.Tensor("float32", new Float32Array([0, 0, 0.5]), [1, 3])
+    });
+    return session;
+  };
+  if (navigator.gpu) {
+    try { net = await tryCreate(["webgpu"]); backend = "WebGPU"; }
+    catch (e) { console.warn("WebGPU backend unavailable, using WebAssembly:", e); }
+  }
+  if (!net) { net = await tryCreate(["wasm"]); backend = "WebAssembly"; }
+  loadedModel = name;
+  loadBox.hidden = true;
+  cropCanvas.width = cropCanvas.height = inputSize;
+}
+
+/* ---------- inference ---------- */
+
+const cropCanvas = document.createElement("canvas");
+const cropCtx = cropCanvas.getContext("2d", { willReadFrequently: true });
+
+function keypointBox(j2, w, h) {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (const k of BODY_KEYPOINTS) {
+    const x = j2[k * 2], y = j2[k * 2 + 1];
+    if (x < x1) x1 = x; if (x > x2) x2 = x; if (y < y1) y1 = y; if (y > y2) y2 = y;
+  }
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+  const hx = (x2 - x1) * (0.5 + BOX_PAD) / DETECTOR_TO_GT_BOX, hy = (y2 - y1) * (0.5 + BOX_PAD) / DETECTOR_TO_GT_BOX;
+  const b = [Math.max(0, cx - hx), Math.max(0, cy - hy), Math.min(w, cx + hx), Math.min(h, cy + hy)];
+  const ok = b.every(Number.isFinite) && b[2] - b[0] > 0.05 * Math.min(w, h) && b[3] - b[1] > 0.05 * Math.min(w, h);
+  return ok ? b : null;                                   // null: start again from the whole frame
+}
+
+async function step() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) return;
+  const t0 = performance.now();
+  const focal = (cliffFocal ? FOCAL_FALLBACK_DIAG : 1) * Math.hypot(h, w);
+  const [x1, y1, x2, y2] = box || [0, 0, w, h];
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, size = Math.max(x2 - x1, y2 - y1);
+  const cliff = cliffFocal
+    ? [Math.atan((cx - w / 2) / focal), Math.atan((cy - h / 2) / focal), size / focal]
+    : [2 * cx / w - 1, 2 * cy / h - 1, size / Math.max(w, h)];
+  const side = size * CROP_EXPAND;
+  const ix1 = Math.floor(cx - side / 2), iy1 = Math.floor(cy - side / 2);
+  const sw = Math.ceil(cx - side / 2 + side) - ix1, sh = Math.ceil(cy - side / 2 + side) - iy1;
+
+  // Square crop, black outside the frame, resized to the network input.
+  const S = inputSize;
+  cropCtx.setTransform(1, 0, 0, 1, 0, 0);
+  cropCtx.fillStyle = "#000"; cropCtx.fillRect(0, 0, S, S);
+  cropCtx.setTransform(S / sw, 0, 0, S / sh, -ix1 * S / sw, -iy1 * S / sh);
+  cropCtx.drawImage(video, 0, 0, w, h);
+  const px = cropCtx.getImageData(0, 0, S, S).data, plane = S * S, chw = new Float32Array(3 * plane);
+  for (let i = 0, p = 0; i < plane; i++, p += 4) {
+    chw[i] = (px[p] / 255 - MEAN[0]) / STD[0];
+    chw[plane + i] = (px[p + 1] / 255 - MEAN[1]) / STD[1];
+    chw[2 * plane + i] = (px[p + 2] / 255 - MEAN[2]) / STD[2];
+  }
+
+  const out = await net.run({
+    image: new ort.Tensor("float32", chw, [1, 3, S, S]),
+    cliff_cond: new ort.Tensor("float32", Float32Array.from(cliff), [1, 3])
+  });
+  const mesh = await body.run({ mhr_params: out.mhr_params, shape_params: out.shape_params });
+
+  const j2 = Float32Array.from(out.joints_2d.data);
+  for (let i = 0; i < j2.length; i += 2) {
+    j2[i] = (j2[i] + 1) * 0.5 * sw + ix1;
+    j2[i + 1] = (j2[i + 1] + 1) * 0.5 * sh + iy1;
+  }
+  box = keypointBox(j2, w, h);
+
+  live = { verts: mesh.vertices.data, t: Array.from(out.cam_trans.data).slice(0, 3), joints: mesh.joints_3d.data, focal, w, h };
+  if (!Number.isFinite(live.verts[0]) || !live.t.every(Number.isFinite)) { live = null; box = null; return; }
+  updateScene();
+  updateTracking();
+  const dt = performance.now() - t0;
+  frameMs = frameMs ? frameMs * 0.9 + dt * 0.1 : dt;
+  setStatus(modelSel.selectedOptions[0].textContent.split(",")[0] + " model, " + backend + ", " + Math.round(frameMs) + " ms per frame");
+  captureBtn.disabled = false; modeBtn.disabled = false; stageMsg.hidden = true;
+}
+
+function loop() {
+  if (!running) return;
+  if (!busy && net && body && video.readyState >= 2) {
+    busy = true;
+    step().catch(fail).finally(() => { busy = false; });
+  }
+  requestAnimationFrame(loop);
+}
+
+function fail(error) {
+  console.error(error);
+  setStatus(String(error && error.message || error));
+}
+
+/* ---------- body frame and anatomical regions ---------- */
+
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const kp = (joints, k) => [joints[k * 3], joints[k * 3 + 1], joints[k * 3 + 2]];
+
+// Patient axes from the body: LNG from mid-hip to neck, LAT from right to left shoulder, VRT = LAT x LNG (anterior).
+function bodyFrame(joints) {
+  const lS = kp(joints, KP.lShoulder), rS = kp(joints, KP.rShoulder), lH = kp(joints, KP.lHip), rH = kp(joints, KP.rHip);
+  const neck = kp(joints, KP.neck), hip = [(lH[0] + rH[0]) / 2, (lH[1] + rH[1]) / 2, (lH[2] + rH[2]) / 2];
+  const up = sub(neck, hip), length = Math.hypot(...up), lng = norm(up);
+  const across = sub(lS, rS), d = dot(across, lng);
+  const lat = norm([across[0] - d * lng[0], across[1] - d * lng[1], across[2] - d * lng[2]]);
+  const vrt = cross(lat, lng);
+  const halfShoulder = Math.abs(dot(across, lat)) / 2, halfHip = Math.abs(dot(sub(lH, rH), lat)) / 2;
+  const valid = length > 0.15 && halfShoulder > 0.05 && [...lng, ...lat].every(Number.isFinite);
+  return { origin: hip, lng, lat, vrt, length, halfShoulder, halfHip, valid };
+}
+
+// Region membership per vertex. s runs along the trunk: 0 at mid-hip, 1 at the neck. a is the lateral
+// distance from the trunk axis. The lateral limits keep the arms out of the trunk regions.
+function buildRegions(verts, frame) {
+  const n = verts.length / 3;
+  const lists = { fullBody: [], torso: [], head: [], upperChest: [], thorax: [], abdomen: [], pelvis: [] };
+  for (let i = 0; i < n; i++) lists.fullBody.push(i);
+  if (frame.valid) {
+    const { origin: o, lng, lat, length, halfShoulder, halfHip } = frame;
+    const chest = halfShoulder, pelvis = Math.max(1.9 * halfHip, 0.8 * halfShoulder);
+    for (let i = 0; i < n; i++) {
+      const x = verts[i * 3] - o[0], y = verts[i * 3 + 1] - o[1], z = verts[i * 3 + 2] - o[2];
+      const s = (x * lng[0] + y * lng[1] + z * lng[2]) / length;
+      const a = Math.abs(x * lat[0] + y * lat[1] + z * lat[2]);
+      const limit = s <= 0.1 ? pelvis : s >= 0.6 ? chest : pelvis + (chest - pelvis) * (s - 0.1) / 0.5;
+      if (s >= -0.22 && s <= 1.0 && a <= limit) lists.torso.push(i);
+      if (s >= 0.72 && s <= 1.02 && a <= chest) lists.upperChest.push(i);
+      if (s >= 0.45 && s < 0.80 && a <= chest) lists.thorax.push(i);
+      if (s >= 0.12 && s < 0.50 && a <= limit) lists.abdomen.push(i);
+      if (s >= -0.22 && s < 0.15 && a <= pelvis) lists.pelvis.push(i);
+      if (s >= 1.06 && a <= 0.65 * halfShoulder) lists.head.push(i);
+    }
+  }
+  return lists;
+}
+
+function selectedNames() {
+  const names = regionInputs.filter(i => i.checked).map(i => i.value);
+  return names.length ? names : ["fullBody"];
+}
+
+function selectedIndices(regions) {
+  const names = selectedNames();
+  if (names.includes("fullBody") || !regions) return regions ? regions.fullBody : [];
+  const seen = new Set();
+  for (const name of names) for (const i of regions[name]) seen.add(i);
+  return seen.size >= 3 ? [...seen] : regions.fullBody;   // region not found on this body: use the whole body
+}
+
+/* ---------- rigid registration of the selected region ---------- */
+
+// Largest eigenvector of a symmetric 4x4 matrix by Jacobi rotations.
+function topEigenvector4(a) {
+  const v = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+  for (let sweep = 0; sweep < 16; sweep++) {
+    let off = 0;
+    for (let p = 0; p < 4; p++) for (let q = p + 1; q < 4; q++) off += a[p][q] * a[p][q];
+    if (off < 1e-22) break;
+    for (let p = 0; p < 4; p++) for (let q = p + 1; q < 4; q++) {
+      if (Math.abs(a[p][q]) < 1e-300) continue;
+      const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+      const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < 4; k++) { const kp_ = a[k][p], kq = a[k][q]; a[k][p] = c * kp_ - s * kq; a[k][q] = s * kp_ + c * kq; }
+      for (let k = 0; k < 4; k++) { const pk = a[p][k], qk = a[q][k]; a[p][k] = c * pk - s * qk; a[q][k] = s * pk + c * qk; }
+      for (let k = 0; k < 4; k++) { const vp = v[k][p], vq = v[k][q]; v[k][p] = c * vp - s * vq; v[k][q] = s * vp + c * vq; }
+    }
+  }
+  let best = 0;
+  for (let i = 1; i < 4; i++) if (a[i][i] > a[best][best]) best = i;
+  return [v[0][best], v[1][best], v[2][best], v[3][best]];
+}
+
+// Rotation (row-major 3x3) and centroid shift that carry the reference region onto the live region,
+// both in camera coordinates. Horn's closed-form solution.
+function registerRegion(refV, refT, liveV, liveT, indices) {
+  const n = indices.length;
+  if (n < 3) return null;
+  let rx = 0, ry = 0, rz = 0, lx = 0, ly = 0, lz = 0;
+  for (const i of indices) {
+    rx += refV[i * 3]; ry += refV[i * 3 + 1]; rz += refV[i * 3 + 2];
+    lx += liveV[i * 3]; ly += liveV[i * 3 + 1]; lz += liveV[i * 3 + 2];
+  }
+  rx /= n; ry /= n; rz /= n; lx /= n; ly /= n; lz /= n;
+  let m00 = 0, m01 = 0, m02 = 0, m10 = 0, m11 = 0, m12 = 0, m20 = 0, m21 = 0, m22 = 0;
+  for (const i of indices) {
+    const ax = refV[i * 3] - rx, ay = refV[i * 3 + 1] - ry, az = refV[i * 3 + 2] - rz;
+    const bx = liveV[i * 3] - lx, by = liveV[i * 3 + 1] - ly, bz = liveV[i * 3 + 2] - lz;
+    m00 += ax * bx; m01 += ax * by; m02 += ax * bz;
+    m10 += ay * bx; m11 += ay * by; m12 += ay * bz;
+    m20 += az * bx; m21 += az * by; m22 += az * bz;
+  }
+  let [w, x, y, z] = topEigenvector4([
+    [m00 + m11 + m22, m12 - m21, m20 - m02, m01 - m10],
+    [m12 - m21, m00 - m11 - m22, m01 + m10, m02 + m20],
+    [m20 - m02, m01 + m10, -m00 + m11 - m22, m12 + m21],
+    [m01 - m10, m02 + m20, m12 + m21, -m00 - m11 + m22]]);
+  const l = Math.hypot(w, x, y, z);
+  if (!(l > 0)) return null;
+  w /= l; x /= l; y /= l; z /= l;
+  const rotation = [
+    1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w),
+    2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w),
+    2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)];
+  const shift = [lx + liveT[0] - rx - refT[0], ly + liveT[1] - ry - refT[1], lz + liveT[2] - rz - refT[2]];
+  return { rotation, shift };
+}
+
+// Express a camera-frame rotation in the patient frame and read pitch (about LAT), roll (about LNG), yaw (about VRT).
+function clinicalAngles(r, frame) {
+  const B = [frame.lat, frame.lng, frame.vrt];             // rows are the patient axes in camera coordinates
+  const rb = [0, 1, 2].map(i => [0, 1, 2].map(j => r[i * 3] * B[j][0] + r[i * 3 + 1] * B[j][1] + r[i * 3 + 2] * B[j][2]));
+  const p = [0, 1, 2].map(i => [0, 1, 2].map(j => B[i][0] * rb[0][j] + B[i][1] * rb[1][j] + B[i][2] * rb[2][j]));
+  const m = new THREE.Matrix4().set(p[0][0], p[0][1], p[0][2], 0, p[1][0], p[1][1], p[1][2], 0, p[2][0], p[2][1], p[2][2], 0, 0, 0, 0, 1);
+  const e = new THREE.Euler().setFromRotationMatrix(m, "YXZ"), deg = 180 / Math.PI;
+  return { pitch: e.x * deg, roll: e.y * deg, yaw: e.z * deg };
+}
+
+/* ---------- smoothing of the displayed values (one-euro filter) ---------- */
+
+class OneEuro {
+  constructor(minCutoff, beta) { this.minCutoff = minCutoff; this.beta = beta; this.reset(); }
+  reset() { this.t = null; this.raw = null; this.x = null; this.dx = 0; }
+  alpha(dt, cutoff) { return dt / (dt + 1 / (2 * Math.PI * cutoff)); }
+  filter(value, t) {
+    if (!Number.isFinite(value)) return value;
+    if (this.t === null) { this.t = t; this.raw = value; this.x = value; return value; }
+    const dt = Math.max(1 / 120, Math.min(0.25, t - this.t));
+    this.dx += this.alpha(dt, 1) * ((value - this.raw) / dt - this.dx);
+    this.x += this.alpha(dt, this.minCutoff + this.beta * Math.abs(this.dx)) * (value - this.x);
+    this.t = t; this.raw = value;
+    return this.x;
+  }
+}
+const filters = {
+  lat: new OneEuro(1.0, 0.02), lng: new OneEuro(1.0, 0.02), vrt: new OneEuro(1.0, 0.02),
+  yaw: new OneEuro(0.7, 0.03), pitch: new OneEuro(0.7, 0.03), roll: new OneEuro(0.7, 0.03)
+};
+const resetFilters = () => Object.values(filters).forEach(f => f.reset());
+
+/* ---------- readout ---------- */
+
+const signed = (v, digits, unit) => {
+  const text = Math.abs(v).toFixed(digits);
+  return (Number(text) === 0 ? "" : v > 0 ? "+" : "\u2212") + text + unit;
+};
+
+function setRow(key, value, tolerance, text) {
+  const row = rows[key], ratio = value / tolerance;
+  row.val.textContent = text;
+  row.tr.classList.toggle("out", Math.abs(ratio) > 1);
+  const clamped = Math.max(-3, Math.min(3, ratio));
+  row.mk.style.left = (key === "mag" ? Math.abs(clamped) / 3 * 100 : 50 + clamped / 3 * 50) + "%";
+}
+
+function clearReadout() {
+  for (const key in rows) { rows[key].val.textContent = "--"; rows[key].tr.classList.remove("out"); rows[key].mk.style.left = key === "mag" ? "0%" : "50%"; }
+  overall.textContent = "Reference required"; overall.classList.remove("out");
+}
+
+function updateTracking() {
+  if (!reference || !live) return;
+  const indices = selectedIndices(reference.regions);
+  const fit = registerRegion(reference.verts, reference.t, live.verts, live.t, indices);
+  if (!fit) return;
+  const f = reference.frame, now = performance.now() / 1000, tT = Number(tolT.value), tR = Number(tolR.value);
+  const lat = filters.lat.filter(dot(fit.shift, f.lat) * 1000, now);
+  const lng = filters.lng.filter(dot(fit.shift, f.lng) * 1000, now);
+  const vrt = filters.vrt.filter(dot(fit.shift, f.vrt) * 1000, now);
+  const ang = clinicalAngles(fit.rotation, f);
+  const yaw = filters.yaw.filter(ang.yaw, now), pitch = filters.pitch.filter(ang.pitch, now), roll = filters.roll.filter(ang.roll, now);
+  const mag = Math.hypot(lat, lng, vrt);
+  setRow("vrt", vrt, tT, signed(vrt, 0, " mm"));
+  setRow("lat", lat, tT, signed(lat, 0, " mm"));
+  setRow("lng", lng, tT, signed(lng, 0, " mm"));
+  setRow("mag", mag, tT, mag.toFixed(0) + " mm");
+  setRow("yaw", yaw, tR, signed(yaw, 1, "\u00b0"));
+  setRow("pitch", pitch, tR, signed(pitch, 1, "\u00b0"));
+  setRow("roll", roll, tR, signed(roll, 1, "\u00b0"));
+  const outside = mag > tT || [lat, lng, vrt].some(v => Math.abs(v) > tT) || [yaw, pitch, roll].some(v => Math.abs(v) > tR);
+  overall.textContent = outside ? "Outside tolerance" : "Within tolerance";
+  overall.classList.toggle("out", outside);
+}
+
+/* ---------- rendering ---------- */
+
+function initThree(faces) {
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const overlayCam = new THREE.PerspectiveCamera(50, 1, 0.05, 100);
+  const orbitCam = new THREE.PerspectiveCamera(40, 1, 0.05, 100);
+  const controls = new OrbitControls(orbitCam, canvas);
+  controls.enabled = false;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+  scene.add(sun);
+
+  let count = 0;
+  for (let i = 0; i < faces.length; i++) if (faces[i] >= count) count = faces[i] + 1;
+  const index = new THREE.BufferAttribute(faces, 1);
+  const makeGeometry = () => {
+    const g = new THREE.BufferGeometry();
+    g.setIndex(index);
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    return g;
+  };
+  const geometry = makeGeometry();
+  geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  mesh.frustumCulled = false; mesh.visible = false;
+  scene.add(mesh);
+  const ghost = new THREE.Mesh(makeGeometry(), new THREE.MeshBasicMaterial({ color: 0x8a8f98, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 4 }));
+  ghost.frustumCulled = false; ghost.visible = false; ghost.renderOrder = 1;
+  scene.add(ghost);
+  three = { renderer, scene, overlayCam, orbitCam, controls, sun, mesh, ghost, count };
+  resizeRenderer();
+}
+
+function resizeRenderer() {
+  if (!three) return;
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (!w || !h) return;
+  three.renderer.setSize(w, h, false);
+  three.overlayCam.aspect = three.orbitCam.aspect = w / h;
+  three.overlayCam.updateProjectionMatrix(); three.orbitCam.updateProjectionMatrix();
+  render();
+}
+
+// Camera axes (x right, y down, z forward) to three.js axes (x right, y up, z toward the viewer).
+function fillPositions(geometry, verts) {
+  const p = geometry.attributes.position.array;
+  for (let i = 0; i < p.length; i += 3) { p[i] = verts[i]; p[i + 1] = -verts[i + 1]; p[i + 2] = -verts[i + 2]; }
+  geometry.attributes.position.needsUpdate = true;
+}
+
+function updateColors() {
+  if (!three || !live) return;
+  const colors = three.mesh.geometry.attributes.color.array, n = three.count;
+  for (let i = 0; i < n; i++) { colors[i * 3] = C_BASE[0]; colors[i * 3 + 1] = C_BASE[1]; colors[i * 3 + 2] = C_BASE[2]; }
+  const regions = reference ? reference.regions : liveRegions;
+  const names = selectedNames();
+  const showSelection = reference || !names.includes("fullBody");
+  if (regions && showSelection) {
+    const tol = Number(tolT.value) / 1000;
+    for (const i of selectedIndices(regions)) {
+      let c = C_SEL;
+      if (reference) {
+        const dx = live.verts[i * 3] + live.t[0] - reference.verts[i * 3] - reference.t[0];
+        const dy = live.verts[i * 3 + 1] + live.t[1] - reference.verts[i * 3 + 1] - reference.t[1];
+        const dz = live.verts[i * 3 + 2] + live.t[2] - reference.verts[i * 3 + 2] - reference.t[2];
+        const r = Math.hypot(dx, dy, dz) / tol;
+        if (r <= 0.8) c = C_OK;
+        else if (r <= 1) { const k = (r - 0.8) / 0.2; c = [0, 1, 2].map(j => C_OK[j] + (C_NEAR[j] - C_OK[j]) * k); }
+        else { const k = Math.min(1, r - 1); c = [0, 1, 2].map(j => C_NEAR[j] + (C_OUT[j] - C_NEAR[j]) * k); }
+      }
+      colors[i * 3] = c[0]; colors[i * 3 + 1] = c[1]; colors[i * 3 + 2] = c[2];
+    }
+  }
+  three.mesh.geometry.attributes.color.needsUpdate = true;
+}
+
+function updateScene() {
+  if (!three || !live) return;
+  const { mesh, overlayCam } = three;
+  fillPositions(mesh.geometry, live.verts);
+  mesh.geometry.computeVertexNormals();
+  mesh.position.set(live.t[0], -live.t[1], -live.t[2]);
+  mesh.visible = true;
+  if (!reference) {
+    const frame = bodyFrame(live.joints);
+    liveRegions = buildRegions(live.verts, frame);
+  }
+  updateColors();
+  overlayCam.fov = 2 * Math.atan(live.h / (2 * live.focal)) * 180 / Math.PI;
+  overlayCam.updateProjectionMatrix();
+  render();
+}
+
+function render() {
+  if (!three) return;
+  const cam = view3d ? three.orbitCam : three.overlayCam;
+  if (view3d) three.controls.update();
+  three.sun.position.copy(cam.position).add(new THREE.Vector3(0.4, 0.8, 0.6));
+  three.renderer.render(three.scene, cam);
+}
+
+function setView3d(on) {
+  view3d = on;
+  stage.classList.toggle("three", on); stage.classList.toggle("overlay", !on);
+  modeBtn.textContent = on ? "Show camera overlay" : "Show 3D view";
+  if (!three) return;
+  three.controls.enabled = on;
+  if (on && live) {
+    const target = three.mesh.position.clone();
+    three.controls.target.copy(target);
+    three.orbitCam.position.set(target.x, target.y, target.z + 3.2);
+    three.controls.update();
+  }
+  render();
+}
+
+/* ---------- camera ---------- */
+
+function fitStage() {
+  if (video.videoWidth && video.videoHeight) stage.style.setProperty("--ar", (video.videoWidth / video.videoHeight).toFixed(4));
+  resizeRenderer();
+}
+
+async function openCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("Camera access needs a secure (https) address.");
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false, video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+  } catch (e) {
+    if (e.name === "NotAllowedError") throw new Error("Camera permission was denied.");
+    if (e.name === "NotFoundError" || e.name === "OverconstrainedError") throw new Error("No camera was found.");
+    throw e;
+  }
+  video.srcObject = stream;
+  await video.play();
+  fitStage();
+  box = null;
+  try {
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+    flipBtn.hidden = cams.length < 2;
+  } catch (e) { flipBtn.hidden = true; }
+}
+
+let wakeLock = null;
+async function keepAwake() {
+  try { if (navigator.wakeLock && running) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) { /* optional */ }
+}
+
+async function start() {
+  startBtn.disabled = true;
+  try {
+    stageMsg.hidden = false; stageMsg.textContent = "Starting camera";
+    await openCamera();
+    stageMsg.textContent = "Loading model";
+    if (loadedModel !== modelSel.value) await loadModels(modelSel.value);
+    stageMsg.textContent = "Looking for a person";
+    running = true; frameMs = 0;
+    startBtn.textContent = "Stop camera";
+    keepAwake();
+    loop();
+  } catch (e) {
+    stop();
+    stageMsg.hidden = false; stageMsg.textContent = "Camera off";
+    loadBox.hidden = true;
+    fail(e);
+  } finally { startBtn.disabled = false; }
+}
+
+function stop() {
+  running = false;
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  video.srcObject = null;
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  live = null; liveRegions = null; box = null;
+  if (three) { three.mesh.visible = false; render(); }
+  startBtn.textContent = "Start camera";
+  flipBtn.hidden = true; captureBtn.disabled = true; modeBtn.disabled = true;
+  stageMsg.hidden = false; stageMsg.textContent = "Camera off";
+  setStatus("");
+}
+
+/* ---------- controls ---------- */
+
+startBtn.addEventListener("click", () => { if (running) stop(); else start(); });
+
+flipBtn.addEventListener("click", async () => {
+  facing = facing === "environment" ? "user" : "environment";
+  try { await openCamera(); } catch (e) { fail(e); }
+});
+
+modeBtn.addEventListener("click", () => setView3d(!view3d));
+
+captureBtn.addEventListener("click", () => {
+  if (!live) return;
+  const frame = bodyFrame(live.joints);
+  if (!frame.valid) { refStatus.textContent = "The body was not found clearly enough. Reference not captured."; return; }
+  reference = {
+    verts: Float32Array.from(live.verts), t: live.t.slice(), joints: Float32Array.from(live.joints),
+    frame, regions: buildRegions(live.verts, frame), time: new Date()
+  };
+  resetFilters();
+  fillPositions(three.ghost.geometry, reference.verts);
+  three.ghost.position.set(reference.t[0], -reference.t[1], -reference.t[2]);
+  three.ghost.visible = true;
+  clearBtn.disabled = false;
+  refStatus.textContent = "Reference captured at " + reference.time.toLocaleTimeString();
+  updateColors(); updateTracking(); render();
+});
+
+clearBtn.addEventListener("click", () => {
+  reference = null; resetFilters();
+  if (three) three.ghost.visible = false;
+  clearBtn.disabled = true;
+  refStatus.textContent = "No reference captured";
+  clearReadout(); updateColors(); render();
+});
+
+for (const input of regionInputs) {
+  input.addEventListener("change", () => {
+    if (input.value === "fullBody" && input.checked) regionInputs.forEach(i => { if (i !== input) i.checked = false; });
+    else if (input.checked) regionInputs[0].checked = false;
+    if (!regionInputs.some(i => i.checked)) regionInputs[0].checked = true;
+    resetFilters();
+    updateColors(); updateTracking(); render();
+  });
+}
+
+const showTolerances = () => {
+  $("tolTOut").textContent = Number(tolT.value).toFixed(0) + " mm";
+  $("tolROut").textContent = Number(tolR.value).toFixed(1) + "\u00b0";
+  updateColors(); updateTracking(); render();
+};
+tolT.addEventListener("input", showTolerances);
+tolR.addEventListener("input", showTolerances);
+
+modelSel.addEventListener("change", async () => {
+  if (!running) return;
+  const wasRunning = running;
+  running = false;
+  while (busy) await new Promise(r => setTimeout(r, 30));
+  try { await loadModels(modelSel.value); frameMs = 0; running = wasRunning; loop(); }
+  catch (e) { loadBox.hidden = true; fail(e); }
+});
+
+video.addEventListener("resize", () => { box = null; fitStage(); });
+window.addEventListener("resize", resizeRenderer);
+window.addEventListener("orientationchange", () => setTimeout(fitStage, 300));
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") keepAwake(); });
+(function orbitRender() { if (view3d) render(); requestAnimationFrame(orbitRender); })();
+
+clearReadout();
+</script>
+</body>
+</html>
