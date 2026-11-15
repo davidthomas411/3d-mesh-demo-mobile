@@ -163,6 +163,19 @@ tr.out .pbar .mk{background:var(--danger)}
       <label><input type="checkbox" value="pelvis"><span>Pelvis</span></label>
     </fieldset>
 
+    <h2>Anatomy</h2>
+    <fieldset id="anatomyBox">
+      <label><input id="anaEnable" type="checkbox" disabled><span>Show atlas anatomy (TotalSegmentator structures)</span></label>
+    </fieldset>
+    <div id="anaControls" hidden>
+      <div class="tolrow"><label for="anaOpacity">Anatomy</label>
+        <input id="anaOpacity" type="range" min="0.2" max="1" step="0.05" value="0.9"><output id="anaOpacityOut">0.9</output></div>
+      <div class="tolrow"><label for="anaSkin">Skin</label>
+        <input id="anaSkin" type="range" min="0.05" max="1" step="0.05" value="0.25"><output id="anaSkinOut">0.25</output></div>
+      <fieldset id="anaGroups"></fieldset>
+    </div>
+    <p id="anaNote" class="meta">Atlas-based illustrative anatomy. Not patient-specific. Not for clinical use. Loads about 2 MB the first time it is switched on.</p>
+
     <h2>Tolerance</h2>
     <div class="tolrow">
       <label for="tolT">Translation</label>
@@ -190,6 +203,7 @@ tr.out .pbar .mk{background:var(--danger)}
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { loadAtlas, AnatomyLayer, DISCLAIMER } from "./anatomy/anatomy.js";
 import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/ort.webgpu.bundle.min.mjs";
 
 /* ---------- configuration ---------- */
@@ -236,6 +250,7 @@ let live = null;        // { verts: Float32Array(V*3) body-centred, t: [x,y,z], 
 let reference = null;   // { verts, t, joints, frame, regions, time }
 let liveRegions = null; // regions from the live body, used for display before a reference exists
 let three = null, view3d = false;
+let anatomy = null, anatomyLoading = false;
 
 const setStatus = text => { statusEl.textContent = text; };
 
@@ -657,6 +672,7 @@ function initThree(faces) {
   ghost.frustumCulled = false; ghost.visible = false; ghost.renderOrder = 1;
   scene.add(ghost);
   three = { renderer, scene, overlayCam, orbitCam, controls, sun, mesh, ghost, count };
+  $("anaEnable").disabled = false;
   resizeRenderer();
 }
 
@@ -703,6 +719,42 @@ function updateColors() {
   three.mesh.geometry.attributes.color.needsUpdate = true;
 }
 
+/* ---------- atlas anatomy (illustrative) ---------- */
+
+function applySkinOpacity() {
+  if (!three) return;
+  const on = $("anaEnable").checked, a = Number($("anaSkin").value), m = three.mesh.material;
+  m.transparent = on && a < 1; m.opacity = on ? a : 1; m.depthWrite = !(on && a < 1); m.needsUpdate = true;
+}
+
+async function ensureAnatomy() {
+  if (anatomy || anatomyLoading || !three) return;
+  anatomyLoading = true;
+  try {
+    const atlas = await loadAtlas("atlas/atlas.json", "atlas/atlas.bin");
+    anatomy = new AnatomyLayer(THREE, atlas, { flipYZ: true, opacity: Number($("anaOpacity").value) });
+    three.mesh.add(anatomy.group);
+    const box = $("anaGroups");
+    for (const g of anatomy.groups()) {
+      const label = document.createElement("label"), input = document.createElement("input"), span = document.createElement("span");
+      input.type = "checkbox"; input.checked = anatomy.visibleGroups.has(g.name);
+      input.addEventListener("change", () => { anatomy.setGroupVisible(g.name, input.checked); if (live) anatomy.update(live.verts); render(); });
+      span.textContent = g.name.replace("_", " ") + " (" + g.count + ")";
+      label.append(input, span); box.append(label);
+    }
+  } catch (e) { setStatus("Anatomy unavailable: " + e.message); $("anaEnable").checked = false; }
+  anatomyLoading = false;
+}
+
+$("anaEnable").addEventListener("change", async e => {
+  if (e.target.checked) await ensureAnatomy();
+  if (anatomy) { anatomy.setEnabled(e.target.checked); if (live) anatomy.update(live.verts); }
+  $("anaControls").hidden = !e.target.checked;
+  applySkinOpacity(); render();
+});
+$("anaOpacity").addEventListener("input", e => { if (anatomy) anatomy.setOpacity(Number(e.target.value)); $("anaOpacityOut").textContent = e.target.value; render(); });
+$("anaSkin").addEventListener("input", e => { $("anaSkinOut").textContent = e.target.value; applySkinOpacity(); render(); });
+
 function updateScene() {
   if (!three || !live) return;
   const { mesh, overlayCam } = three;
@@ -710,6 +762,7 @@ function updateScene() {
   mesh.geometry.computeVertexNormals();
   mesh.position.set(live.t[0], -live.t[1], -live.t[2]);
   mesh.visible = true;
+  if (anatomy) anatomy.update(live.verts);
   if (!reference) {
     const frame = bodyFrame(live.joints);
     liveRegions = buildRegions(live.verts, frame);
